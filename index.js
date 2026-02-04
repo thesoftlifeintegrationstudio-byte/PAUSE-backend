@@ -185,6 +185,10 @@ app.get('/health', (req, res) => {
     res.json({ status: 'healthy', service: 'PAUSE' });
 });
 
+app.get('/', (req, res) => {
+    res.json({ message: 'PAUSE API is running' });
+});
+
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
     console.log(`PAUSE backend running on port ${PORT}`);

@@ -3,7 +3,21 @@ const axios = require('axios');
 const cors = require('cors');
 
 const app = express();
-app.use(cors());
+
+// ✅ UPDATED CORS CONFIGURATION WITH YOUR DOMAIN
+const corsOptions = {
+  origin: [
+    'https://ivory-wombat-811991.hostingersite.com',  // ✅ Your Hostinger domain
+    'https://www.ivory-wombat-811991.hostingersite.com',  // ✅ With www
+    'http://localhost:3000',  // For local testing
+    'http://127.0.0.1:5500',  // For local HTML file
+    'http://localhost:8000'   // For local development
+  ],
+  credentials: true,
+  optionsSuccessStatus: 200
+};
+
+app.use(cors(corsOptions));  // ✅ Using custom CORS options
 app.use(express.json());
 
 const SYSTEM_PROMPT = `You are PAUSE.
@@ -268,6 +282,7 @@ async function callAIService(userMessage, attempt = 1) {
     }
 }
 
+// ✅ ORIGINAL ENDPOINT (for other clients)
 app.post('/pause', async (req, res) => {
     try {
         const { message } = req.body;
@@ -286,15 +301,181 @@ app.post('/pause', async (req, res) => {
     }
 });
 
-app.get('/health', (req, res) => {
-    res.json({ status: 'healthy', service: 'PAUSE' });
+// ✅ NEW ENDPOINT FOR YOUR FRONTEND
+app.post('/api/analyze-feeling', async (req, res) => {
+    try {
+        console.log('Frontend request received:', { body: req.body, headers: req.headers });
+        
+        const { feeling, length = 'quick' } = req.body;
+        
+        if (!feeling || typeof feeling !== 'string' || feeling.trim().length === 0) {
+            return res.status(400).json({ 
+                success: false,
+                error: 'Please share how you\'re feeling'
+            });
+        }
+        
+        // Call AI with the feeling as message
+        const aiResult = await callAIService(feeling.trim());
+        const aiText = aiResult.response || '';
+        
+        console.log('AI Response received, length:', aiText.length);
+        
+        // Parse and format for frontend
+        const responseData = parseAndFormatAIResponse(aiText, length);
+        
+        res.json({
+            success: true,
+            data: responseData,
+            source: 'ai',
+            timestamp: new Date().toISOString()
+        });
+        
+    } catch (error) {
+        console.error('Frontend endpoint error:', error.message);
+        res.status(500).json({
+            success: false,
+            data: getFallbackFrontendResponse(),
+            source: 'fallback',
+            error: error.message
+        });
+    }
 });
 
+// Helper function to parse AI response for frontend
+function parseAndFormatAIResponse(aiText, length) {
+    const lines = aiText.split('\n').map(l => l.trim()).filter(l => l);
+    
+    const sections = {
+        whats_happening: '',
+        why_learned: '',
+        belief: '',
+        pattern: '',
+        practice: '',
+        science: ''
+    };
+    
+    let currentSection = '';
+    
+    for (const line of lines) {
+        const lowerLine = line.toLowerCase();
+        
+        if (lowerLine.includes("what's happening")) {
+            currentSection = 'whats_happening';
+        } else if (lowerLine.includes('why this was learned')) {
+            currentSection = 'why_learned';
+        } else if (lowerLine.includes('one belief to check')) {
+            currentSection = 'belief';
+        } else if (lowerLine.includes('one small boundary')) {
+            currentSection = 'practice';
+        } else if (lowerLine.includes('what to notice')) {
+            currentSection = 'pattern';
+        } else if (lowerLine.includes('simple science')) {
+            currentSection = 'science';
+        } else if (currentSection && line && !line.toLowerCase().includes("what's happening") &&
+                   !line.toLowerCase().includes('why this was learned') &&
+                   !line.toLowerCase().includes('one belief to check') &&
+                   !line.toLowerCase().includes('one small boundary') &&
+                   !line.toLowerCase().includes('what to notice') &&
+                   !line.toLowerCase().includes('simple science')) {
+            // Add to current section
+            if (sections[currentSection]) {
+                sections[currentSection] += ' ' + line;
+            } else {
+                sections[currentSection] = line;
+            }
+        }
+    }
+    
+    // Ensure all sections have content
+    for (const key in sections) {
+        if (!sections[key] || sections[key].trim() === '') {
+            sections[key] = getDefaultSectionContent(key);
+        } else {
+            // Clean up the text
+            sections[key] = sections[key].trim();
+        }
+    }
+    
+    // Format based on requested length
+    return formatByLength(sections, length);
+}
+
+function getDefaultSectionContent(section) {
+    const defaults = {
+        whats_happening: "Your emotional system is responding in its natural way.",
+        why_learned: "This response pattern once helped maintain balance or safety.",
+        belief: "What if this experience is simply information, not a problem?",
+        pattern: "Notice the quality of awareness around this feeling.",
+        practice: "You might allow it to be as it is, just for this moment.",
+        science: "Emotional systems develop patterns based on past experiences."
+    };
+    return defaults[section] || "This aspect of your experience is unfolding naturally.";
+}
+
+function formatByLength(sections, length) {
+    if (length === 'keypoints') {
+        return {
+            pattern: sections.whats_happening,
+            meaning: sections.belief,
+            practice: sections.practice,
+            awareness: sections.pattern || "Notice what's present without judgment."
+        };
+    } else if (length === 'detailed') {
+        return {
+            pattern: sections.whats_happening,
+            origin: sections.why_learned,
+            meaning: sections.belief,
+            practice: sections.practice,
+            science: sections.science
+        };
+    }
+    
+    // Default: quick response
+    return sections;
+}
+
+function getFallbackFrontendResponse() {
+    return {
+        whats_happening: "Your system is processing experience in its natural rhythm.",
+        why_learned: "Patterns form from what was once helpful or protective.",
+        belief: "Might this feeling be information rather than instruction?",
+        pattern: "Notice how awareness itself can hold what arises.",
+        practice: "Allow the experience to unfold without needing to change it.",
+        science: "Emotional responses are learned patterns, not fixed truths."
+    };
+}
+
+// Health check endpoint
+app.get('/health', (req, res) => {
+    res.json({ 
+        status: 'healthy', 
+        service: 'PAUSE',
+        timestamp: new Date().toISOString(),
+        endpoints: ['/pause', '/api/analyze-feeling', '/health', '/']
+    });
+});
+
+// Root endpoint
 app.get('/', (req, res) => {
-    res.json({ message: 'PAUSE API is running' });
+    res.json({ 
+        message: 'PAUSE API is running',
+        version: '1.0',
+        endpoints: {
+            pause: 'POST /pause',
+            analyzeFeeling: 'POST /api/analyze-feeling',
+            health: 'GET /health'
+        }
+    });
 });
 
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
-    console.log(`PAUSE backend running on port ${PORT}`);
+    console.log(`✅ PAUSE backend running on port ${PORT}`);
+    console.log(`🌐 CORS enabled for: https://ivory-wombat-811991.hostingersite.com`);
+    console.log(`📡 Endpoints available:`);
+    console.log(`   POST /pause`);
+    console.log(`   POST /api/analyze-feeling`);
+    console.log(`   GET /health`);
+    console.log(`   GET /`);
 });

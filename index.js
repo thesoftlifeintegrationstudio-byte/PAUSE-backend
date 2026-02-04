@@ -126,6 +126,37 @@ function validateResponse(aiResponse) {
         if (text.includes(phrase)) return false;
     }
     
+    const metaphorBlock = [
+        'like a', 'as if', 'as though', 'similar to', 'cloud', 'wave',
+        'storm', 'signal', 'message', 'communicate', 'speaking to you'
+    ];
+    for (const phrase of metaphorBlock) {
+        if (text.includes(phrase)) return false;
+    }
+    
+    const bodyIntensityBlock = [
+        'chest', 'heart', 'breath', 'breathing', 'tightness', 'pressure',
+        'sensation', 'body is', 'physical response'
+    ];
+    for (const phrase of bodyIntensityBlock) {
+        if (text.includes(phrase)) return false;
+    }
+    
+    const instructionalGlobal = [
+        'notice', 'acknowledge', 'pay attention', 'observe', 'sit with',
+        'tune into', 'check if', 'monitor', 'allow yourself to', 'let yourself'
+    ];
+    for (const phrase of instructionalGlobal) {
+        if (text.includes(phrase)) return false;
+    }
+    
+    const threatBlock = [
+        'danger', 'threat', 'alarm', 'unsafe', 'risk', 'protect you from', 'warning'
+    ];
+    for (const phrase of threatBlock) {
+        if (text.includes(phrase)) return false;
+    }
+    
     for (const sentence of sentences) {
         const words = sentence.split(/\s+/).length;
         if (words > 25) return false;
@@ -191,6 +222,11 @@ function validateResponse(aiResponse) {
     const causalityWords = ['because', 'so that', 'which means', 'this causes', 'this leads to'];
     for (const word of causalityWords) {
         if (scienceSection.includes(word)) return false;
+    }
+    
+    const scienceVerbs = ['to', 'so', 'because', 'which', 'that helps', 'in order to'];
+    for (const verb of scienceVerbs) {
+        if (scienceSection.includes(verb)) return false;
     }
     
     const jargonIndicators = ['amygdala', 'prefrontal', 'cortisol', 'neuro', 'synapse', 'dopamine', 'serotonin', 'hippocampus'];

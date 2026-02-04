@@ -97,6 +97,7 @@ function validateResponse(aiResponse) {
     
     const text = aiResponse.toLowerCase();
     const lines = aiResponse.split('\n').map(l => l.trim());
+    const sentences = aiResponse.split(/[.!?]+/).map(s => s.trim()).filter(s => s.length > 0);
     
     const bannedWords = ['fix', 'heal', 'should', 'must'];
     for (const word of bannedWords) {
@@ -106,6 +107,28 @@ function validateResponse(aiResponse) {
     const bannedConcepts = ['therapy', 'trauma', 'diagnose', 'diagnosis', 'disorder', 'treatment', 'clinical'];
     for (const concept of bannedConcepts) {
         if (text.includes(concept)) return false;
+    }
+    
+    const instructionalVerbs = [
+        'try to', 'you can', 'take a', 'focus on', 'remember to', 'make sure',
+        'allow yourself to', 'give yourself permission to', 'start to',
+        'avoid pushing', 'take breaks', 'breath', 'breathe', 'breathing'
+    ];
+    for (const verb of instructionalVerbs) {
+        if (text.includes(verb)) return false;
+    }
+    
+    const explanatoryScience = [
+        'fight-or-flight', 'internal alarm', 'stress response', 'heightened state',
+        'automatic process', 'defenses kick', 'nervous system reacts', 'threat response'
+    ];
+    for (const phrase of explanatoryScience) {
+        if (text.includes(phrase)) return false;
+    }
+    
+    for (const sentence of sentences) {
+        const words = sentence.split(/\s+/).length;
+        if (words > 25) return false;
     }
     
     const sectionHeaders = [
@@ -165,12 +188,32 @@ function validateResponse(aiResponse) {
     
     if (scienceLines.length > 2) return false;
     
+    const causalityWords = ['because', 'so that', 'which means', 'this causes', 'this leads to'];
+    for (const word of causalityWords) {
+        if (scienceSection.includes(word)) return false;
+    }
+    
     const jargonIndicators = ['amygdala', 'prefrontal', 'cortisol', 'neuro', 'synapse', 'dopamine', 'serotonin', 'hippocampus'];
     for (const jargon of jargonIndicators) {
         if (scienceSection.includes(jargon)) return false;
     }
     
-    const instructionWords = ['try', 'do', 'practice', 'exercise', 'breathe', 'breathing', 'count', 'notice', 'focus'];
+    const sectionSentenceLimits = {
+        "what's happening": 3,
+        'why this was learned': 2,
+        'one belief to check': 2,
+        'one small boundary': 2,
+        'what to notice': 2,
+        'simple science': 2
+    };
+    
+    for (const [header, limit] of Object.entries(sectionSentenceLimits)) {
+        const sectionText = sectionContents[header];
+        const sectionSentences = sectionText.split(/[.!?]+/).filter(s => s.trim().length > 0 && !s.includes(header));
+        if (sectionSentences.length > limit) return false;
+    }
+    
+    const instructionWords = ['try', 'do', 'practice', 'exercise', 'count', 'notice', 'focus'];
     for (const word of instructionWords) {
         if (scienceSection.includes(word)) return false;
     }

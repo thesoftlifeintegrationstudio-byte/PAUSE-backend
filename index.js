@@ -36,362 +36,192 @@ app.options('*', cors());
 app.use(express.json());
 
 // ==================== AI CONFIGURATION ====================
-const SYSTEM_PROMPT = `You are PAUSE.
+// Length-specific prompts to generate JSON responses matching frontend expectations
+const SYSTEM_PROMPTS = {
+  quick: `You are PAUSE. You are an emotional regulation companion. You are not therapy. You do not diagnose. Your role is to reduce pressure and increase understanding. Nothing is wrong. Something makes sense.
 
-You are an emotional regulation companion.
+Respond with a valid JSON object with exactly these keys: whats_happening, why_learned, belief, pattern, practice, science. Each value must be a string (1-2 sentences max). No extra text outside the JSON.
 
-You are not therapy.
-You are not coaching.
-You are not motivation.
-You do not diagnose.
-You do not treat.
-You do not try to change the user.
+Example: {"whats_happening": "Something is moving through your system. That is natural.", "why_learned": "Your system is using old, intelligent patterns to meet a moment.", "belief": "Is it possible that this is simply happening, not because something is wrong?", "pattern": "Notice the space around the feeling. Avoid the pull to name it or change it.", "practice": "You might try letting the moment be just as it is, just for now.", "science": "Systems learn to protect. They repeat what once helped."}`,
 
-Your role is to reduce pressure and increase understanding.
+  keypoints: `You are PAUSE. You are an emotional regulation companion. You are not therapy. You do not diagnose. Your role is to reduce pressure and increase understanding. Nothing is wrong. Something makes sense.
 
-Nothing is wrong. Something makes sense.
+Respond with a valid JSON object with exactly these keys: pattern, meaning, practice, awareness. Each value must be a string (1-2 sentences max). No extra text outside the JSON.
 
-RESPONSE STRUCTURE (NON-NEGOTIABLE)
+Example: {"pattern": "Cognitive saturation—too many meaningful inputs competing for attention.", "meaning": "Often signals: 'These all matter' or 'I need clearer boundaries.'", "practice": "Choose one small action. Complete it fully before considering another.", "awareness": "Notice when you're trying to process multiple complex thoughts simultaneously."}`,
 
-Every response MUST include ALL six sections, in this exact order:
+  detailed: `You are PAUSE. You are an emotional regulation companion. You are not therapy. You do not diagnose. Your role is to reduce pressure and increase understanding. Nothing is wrong. Something makes sense.
 
-What's happening
-Gently describe what the emotional or nervous system is doing right now.
-Observation only. No labels. No diagnosis. No intensity.
+Respond with a valid JSON object with exactly these keys: pattern, origin, meaning, practice, science. Each value must be a string (1-2 sentences max). No extra text outside the JSON.
 
-Why this was learned
-Explain how this response once helped the person stay safe, connected, or steady.
-Frame as intelligent learning.
-Never blame.
-Never mention parents, trauma, childhood, or disorders.
-
-One belief to check
-Offer exactly one belief.
-Phrase it as a soft internal question.
-Do not challenge or reframe it.
-
-One small boundary or new rule
-Offer exactly one temporary permission.
-Use the phrase "you might try".
-Use "just for now" or "today".
-This is not advice.
-
-What to notice & what to avoid
-Give exactly one thing to notice and one thing to avoid doing automatically.
-
-Simple science (2 lines max)
-Explain the pattern in plain language.
-No jargon.
-No studies.
-No instructions.
-
-TONE RULES (ABSOLUTE)
-
-Calm
-Grounded
-Emotionally neutral but caring
-Short sentences
-No urgency
-No inspiration language
-No metaphors that dramatize
-
-BANNED WORDS (HARD BLOCK)
-Do not use: fix, heal, should, must.
-
-SAFETY RULES
-The response must NEVER: Diagnose, Mention trauma directly, Use therapy language, Push action, Over-educate, Create emotional intensity, Try to resolve the feeling.
-The response must ALWAYS: Normalize patterns, Respect timing, Allow the user to return without progress, Feel steady, not impressed by insight.`;
-
-const FALLBACK_RESPONSE = {
-    response: `What's happening
-Something is moving through your system. That is natural.
-
-Why this was learned
-Your system is using old, intelligent patterns to meet a moment.
-
-One belief to check
-Is it possible that this is simply happening, not because something is wrong?
-
-One small boundary or new rule
-You might try letting the moment be just as it is, just for now.
-
-What to notice & what to avoid
-Notice the space around the feeling. Avoid the pull to name it or change it.
-
-Simple science
-Systems learn to protect. They repeat what once helped.`
+Example: {"pattern": "Overwhelm occurs when cognitive demands exceed processing bandwidth—an intelligent system saying 'simplify and focus' rather than 'you're failing.'", "origin": "Our ancestors balanced immediate survival needs with longer-term planning. Your brain uses similar architecture for emails, relationships, and aspirations.", "meaning": "This might indicate: 'My values are distributed too thinly' or 'Clarity would help more than capacity.'", "practice": "Try the 'one page' method: Write everything on your mind. Circle three priorities. Let the rest exist on paper instead of in mental space.", "science": "Working memory limitations trigger stress responses. This temporary state often shifts with single-tasking and intentional space creation."}`
 };
 
-function validateResponse(aiResponse) {
-    if (!aiResponse || typeof aiResponse !== 'string') return false;
-    
-    const text = aiResponse.toLowerCase();
-    const lines = aiResponse.split('\n').map(l => l.trim());
-    const sentences = aiResponse.split(/[.!?]+/).map(s => s.trim()).filter(s => s.length > 0);
-    
-    const bannedWords = ['fix', 'heal', 'should', 'must'];
-    for (const word of bannedWords) {
-        if (text.includes(word)) return false;
-    }
-    
-    const bannedConcepts = ['therapy', 'trauma', 'diagnose', 'diagnosis', 'disorder', 'treatment', 'clinical'];
-    for (const concept of bannedConcepts) {
-        if (text.includes(concept)) return false;
-    }
-    
-    const instructionalVerbs = [
-        'try to', 'you can', 'take a', 'focus on', 'remember to', 'make sure',
-        'allow yourself to', 'give yourself permission to', 'start to',
-        'avoid pushing', 'take breaks', 'breath', 'breathe', 'breathing'
-    ];
-    for (const verb of instructionalVerbs) {
-        if (text.includes(verb)) return false;
-    }
-    
-    const explanatoryScience = [
-        'fight-or-flight', 'internal alarm', 'stress response', 'heightened state',
-        'automatic process', 'defenses kick', 'nervous system reacts', 'threat response'
-    ];
-    for (const phrase of explanatoryScience) {
-        if (text.includes(phrase)) return false;
-    }
-    
-    const metaphorBlock = [
-        'like a', 'as if', 'as though', 'similar to', 'cloud', 'wave',
-        'storm', 'signal', 'message', 'communicate', 'speaking to you'
-    ];
-    for (const phrase of metaphorBlock) {
-        if (text.includes(phrase)) return false;
-    }
-    
-    const bodyIntensityBlock = [
-        'chest', 'heart', 'breath', 'breathing', 'tightness', 'pressure',
-        'sensation', 'body is', 'physical response'
-    ];
-    for (const phrase of bodyIntensityBlock) {
-        if (text.includes(phrase)) return false;
-    }
-    
-    const instructionalGlobal = [
-        'notice', 'acknowledge', 'pay attention', 'observe', 'sit with',
-        'tune into', 'check if', 'monitor', 'allow yourself to', 'let yourself'
-    ];
-    for (const phrase of instructionalGlobal) {
-        if (text.includes(phrase)) return false;
-    }
-    
-    const threatBlock = [
-        'danger', 'threat', 'alarm', 'unsafe', 'risk', 'protect you from', 'warning'
-    ];
-    for (const phrase of threatBlock) {
-        if (text.includes(phrase)) return false;
-    }
-    
-    for (const sentence of sentences) {
-        const words = sentence.split(/\s+/).length;
-        if (words > 25) return false;
-    }
-    
-    const sectionHeaders = [
-        "what's happening",
-        'why this was learned', 
-        'one belief to check',
-        'one small boundary',
-        'what to notice',
-        'simple science'
-    ];
-    
-    const sectionIndices = [];
-    for (const header of sectionHeaders) {
-        const index = lines.findIndex(l => l.toLowerCase().includes(header));
-        if (index === -1) return false;
-        const allIndices = lines.map((line, idx) => line.toLowerCase().includes(header) ? idx : -1).filter(idx => idx !== -1);
-        if (allIndices.length > 1) return false;
-        sectionIndices.push(index);
-    }
-    
-    for (let i = 1; i < sectionIndices.length; i++) {
-        if (sectionIndices[i] <= sectionIndices[i-1]) return false;
-    }
-    
-    const sectionContents = {};
-    for (let i = 0; i < sectionHeaders.length; i++) {
-        const start = sectionIndices[i];
-        const end = i < sectionHeaders.length - 1 ? sectionIndices[i+1] : lines.length;
-        sectionContents[sectionHeaders[i]] = lines.slice(start, end).join('\n').toLowerCase();
-    }
-    
-    const beliefSection = sectionContents['one belief to check'];
-    const questionMarkCount = (beliefSection.match(/\?/g) || []).length;
-    if (questionMarkCount !== 1) return false;
-    
-    const boundarySection = sectionContents['one small boundary'];
-    const youMightTryMatches = (boundarySection.match(/you might try/g) || []).length;
-    if (youMightTryMatches !== 1) return false;
-    
-    const permissionPhrases = ['allow yourself', 'let yourself', 'give yourself permission'];
-    let permissionCount = 0;
-    for (const phrase of permissionPhrases) {
-        const regex = new RegExp(phrase, 'g');
-        const matches = boundarySection.match(regex);
-        if (matches) permissionCount += matches.length;
-    }
-    if (permissionCount > 1) return false;
-    
-    if (!boundarySection.includes('just for now') && !boundarySection.includes('today')) {
-        return false;
-    }
-    
-    const scienceSection = sectionContents['simple science'];
-    const scienceLines = scienceSection.split('\n')
-        .filter(line => line.trim() !== '')
-        .filter(line => !line.includes('simple science'));
-    
-    if (scienceLines.length > 2) return false;
-    
-    const causalityWords = ['because', 'so that', 'which means', 'this causes', 'this leads to'];
-    for (const word of causalityWords) {
-        if (scienceSection.includes(word)) return false;
-    }
-    
-    const scienceVerbs = ['to', 'so', 'because', 'which', 'that helps', 'in order to'];
-    for (const verb of scienceVerbs) {
-        if (scienceSection.includes(verb)) return false;
-    }
-    
-    const jargonIndicators = ['amygdala', 'prefrontal', 'cortisol', 'neuro', 'synapse', 'dopamine', 'serotonin', 'hippocampus'];
-    for (const jargon of jargonIndicators) {
-        if (scienceSection.includes(jargon)) return false;
-    }
-    
-    const sectionSentenceLimits = {
-        "what's happening": 3,
-        'why this was learned': 2,
-        'one belief to check': 2,
-        'one small boundary': 2,
-        'what to notice': 2,
-        'simple science': 2
-    };
-    
-    for (const [header, limit] of Object.entries(sectionSentenceLimits)) {
-        const sectionText = sectionContents[header];
-        const sectionSentences = sectionText.split(/[.!?]+/).filter(s => s.trim().length > 0 && !s.includes(header));
-        if (sectionSentences.length > limit) return false;
-    }
-    
-    const instructionWords = ['try', 'do', 'practice', 'exercise', 'count', 'notice', 'focus'];
-    for (const word of instructionWords) {
-        if (scienceSection.includes(word)) return false;
-    }
-    
-    return true;
+// Fallback responses (structured JSON versions of your LOCAL_RESPONSES)
+const FALLBACK_RESPONSES = {
+  quick: {
+    whats_happening: "Your nervous system is scanning the horizon—not for danger, but for what matters. This energy rises to meet what's coming, even when the path isn't clear.",
+    why_learned: "Ancestors needed to anticipate storms and predators. Your body remembers this wisdom, applying it to deadlines, conversations, and unknowns.",
+    belief: "What if this anxiety isn't about preventing disaster, but about caring deeply?",
+    pattern: "Energy gathers in your chest and throat—a preparation system activating. Thoughts move like weather patterns, shifting and reforming.",
+    practice: "Place one hand on your sternum. Breathe naturally. Notice the rise and fall for three breaths.",
+    science: "Your amygdala activates ancient pathways designed for protection. Cortisol rises briefly—a temporary visitor, not a permanent resident."
+  },
+  keypoints: {
+    pattern: "Anticipatory energy—your system preparing for what might matter.",
+    meaning: "Often signals: 'This is important' or 'I care about this outcome.'",
+    practice: "Name it gently: 'Preparation energy is here.' Return to one complete breath.",
+    awareness: "Notice when future possibilities feel more real than your feet on the ground."
+  },
+  detailed: {
+    pattern: "Anxiety is future-oriented energy seeking certainty in an uncertain world. It's your ancient threat detection system applying millennia of survival wisdom to modern complexity.",
+    origin: "For 200,000 years, humans survived by anticipating danger. Your nervous system carries this legacy, now interpreting emails and conversations through ancient survival filters.",
+    meaning: "This feeling might be saying: 'My care is activated' or 'Something here holds meaning worth protecting.'",
+    practice: "When anxiety visits, try the RAIN method: Recognize it's here, Allow it space, Investigate where it lives in your body, Nurture with a hand on your heart.",
+    science: "Involves coordinated activation of amygdala (fear center), hippocampus (memory), and prefrontal cortex (planning). This temporary alignment served survival—now serves your humanity."
+  }
+};
+
+function validateJsonResponse(jsonObj, length) {
+  if (!jsonObj || typeof jsonObj !== 'object') return false;
+  
+  const requiredKeys = {
+    quick: ['whats_happening', 'why_learned', 'belief', 'pattern', 'practice', 'science'],
+    keypoints: ['pattern', 'meaning', 'practice', 'awareness'],
+    detailed: ['pattern', 'origin', 'meaning', 'practice', 'science']
+  };
+  
+  const keys = requiredKeys[length];
+  for (const key of keys) {
+    if (!jsonObj[key] || typeof jsonObj[key] !== 'string' || jsonObj[key].length > 500) return false;
+  }
+  
+  return true;
 }
 
-async function callAIService(userMessage, attempt = 1) {
-    try {
-        if (!process.env.AI_API_KEY) {
-            console.error('API key not configured');
-            return FALLBACK_RESPONSE;
-        }
-        
-        const response = await axios.post(
-            'https://api.openai.com/v1/chat/completions',
-            {
-                model: 'gpt-4',
-                messages: [
-                    { role: 'system', content: SYSTEM_PROMPT },
-                    { role: 'user', content: userMessage }
-                ],
-                temperature: 0.3,
-                max_tokens: 350
-            },
-            {
-                headers: {
-                    'Authorization': `Bearer ${process.env.AI_API_KEY}`,
-                    'Content-Type': 'application/json'
-                },
-                timeout: 15000
-            }
-        );
-        
-        if (!response.data?.choices?.[0]?.message?.content) {
-            console.error('Invalid AI response structure');
-            return FALLBACK_RESPONSE;
-        }
-        
-        const aiText = response.data.choices[0].message.content;
-        const isValid = validateResponse(aiText);
-        
-        if (!isValid && attempt < 2) {
-            console.log('Response invalid, regenerating...');
-            return await callAIService(userMessage, attempt + 1);
-        }
-        
-        return isValid ? { response: aiText } : FALLBACK_RESPONSE;
-    } catch (error) {
-        console.error('AI call failed:', error.message);
-        return FALLBACK_RESPONSE;
+async function callAIService(userFeeling, length, attempt = 1) {
+  try {
+    if (!process.env.AI_API_KEY) {
+      console.error('API key not configured');
+      return FALLBACK_RESPONSES[length];
     }
+    
+    const prompt = SYSTEM_PROMPTS[length];
+    if (!prompt) return FALLBACK_RESPONSES[length];
+    
+    const response = await axios.post(
+      'https://api.openai.com/v1/chat/completions',
+      {
+        model: 'gpt-4',
+        messages: [
+          { role: 'system', content: prompt },
+          { role: 'user', content: userFeeling }
+        ],
+        temperature: 0.3,
+        max_tokens: 350
+      },
+      {
+        headers: {
+          'Authorization': `Bearer ${process.env.AI_API_KEY}`,
+          'Content-Type': 'application/json'
+        },
+        timeout: 15000
+      }
+    );
+    
+    if (!response.data?.choices?.[0]?.message?.content) {
+      console.error('Invalid AI response structure');
+      return FALLBACK_RESPONSES[length];
+    }
+    
+    const aiText = response.data.choices[0].message.content.trim();
+    
+    // Try to parse as JSON
+    let parsed;
+    try {
+      parsed = JSON.parse(aiText);
+    } catch (e) {
+      console.error('AI response is not valid JSON:', aiText);
+      return FALLBACK_RESPONSES[length];
+    }
+    
+    const isValid = validateJsonResponse(parsed, length);
+    if (!isValid && attempt < 2) {
+      console.log('Response invalid, regenerating...');
+      return await callAIService(userFeeling, length, attempt + 1);
+    }
+    
+    return isValid ? parsed : FALLBACK_RESPONSES[length];
+  } catch (error) {
+    console.error('AI call failed:', error.message);
+    return FALLBACK_RESPONSES[length];
+  }
 }
 
 // ==================== ROUTES ====================
-app.post('/pause', async (req, res) => {
-    try {
-        console.log('Received pause request from origin:', req.headers.origin);
-        console.log('Request body:', req.body);
-        
-        const { message } = req.body;
-        
-        if (!message || typeof message !== 'string' || message.trim().length === 0) {
-            return res.status(400).json({ 
-                error: 'Invalid input. "message" must be a non-empty string.' 
-            });
-        }
-        
-        const result = await callAIService(message.trim());
-        console.log('Sending response');
-        res.json(result);
-    } catch (error) {
-        console.error('Route error:', error.message);
-        res.status(500).json(FALLBACK_RESPONSE);
+app.post('/api/analyze-feeling', async (req, res) => {
+  try {
+    console.log('Received analyze-feeling request from origin:', req.headers.origin);
+    console.log('Request body:', req.body);
+    
+    const { feeling, length = 'quick' } = req.body;
+    
+    if (!feeling || typeof feeling !== 'string' || feeling.trim().length === 0) {
+      return res.status(400).json({ 
+        error: 'Invalid input. "feeling" must be a non-empty string.' 
+      });
     }
+    
+    if (!['quick', 'keypoints', 'detailed'].includes(length)) {
+      return res.status(400).json({ 
+        error: 'Invalid "length". Must be "quick", "keypoints", or "detailed".' 
+      });
+    }
+    
+    const result = await callAIService(feeling.trim(), length);
+    console.log('Sending response');
+    res.json({ success: true, data: result, source: 'ai' });
+  } catch (error) {
+    console.error('Route error:', error.message);
+    res.status(500).json({ success: false, data: FALLBACK_RESPONSES.quick, source: 'fallback' });
+  }
 });
 
 app.get('/health', (req, res) => {
-    res.json({ 
-        status: 'healthy', 
-        service: 'PAUSE',
-        timestamp: new Date().toISOString(),
-        allowedOrigins: allowedOrigins,
-        endpoints: ['GET /health', 'POST /pause', 'GET /']
-    });
+  res.json({ 
+    status: 'healthy', 
+    service: 'PAUSE',
+    timestamp: new Date().toISOString(),
+    allowedOrigins: allowedOrigins,
+    endpoints: ['GET /health', 'POST /api/analyze-feeling', 'GET /']
+  });
 });
 
 app.get('/', (req, res) => {
-    res.json({ 
-        message: 'PAUSE API is running',
-        endpoints: {
-            health: 'GET /health',
-            pause: 'POST /pause',
-            cors: {
-                allowedOrigins: allowedOrigins,
-                methods: ['GET', 'POST', 'OPTIONS'],
-                headers: ['Content-Type', 'Authorization']
-            }
-        }
-    });
+  res.json({ 
+    message: 'PAUSE API is running',
+    endpoints: {
+      health: 'GET /health',
+      analyzeFeeling: 'POST /api/analyze-feeling',
+      cors: {
+        allowedOrigins: allowedOrigins,
+        methods: ['GET', 'POST', 'OPTIONS'],
+        headers: ['Content-Type', 'Authorization']
+      }
+    }
+  });
 });
 
 // ==================== START SERVER ====================
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, '0.0.0.0', () => {
-    console.log(`
-    ============================================
-    🧘 PAUSE BACKEND STARTED
-    ============================================
-    🌐 Port: ${PORT}
-    🔗 Health: http://localhost:${PORT}/health
-    📍 Allowed Frontends:`);
-    allowedOrigins.forEach(origin => console.log(`       ${origin}`));
-    console.log(`    ============================================`);
+  console.log(`
+  ============================================
+  🧘 PAUSE BACKEND STARTED
+  ============================================
+  🌐 Port: ${PORT}
+  🔗 Health: http://localhost:${PORT}/health
+  📍 Allowed Frontends:`);
+  allowedOrigins.forEach(origin => console.log(`       ${origin}`));
+  console.log(`  ============================================`);
 });

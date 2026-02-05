@@ -3,6 +3,33 @@ const axios = require('axios');
 const cors = require('cors');
 
 const app = express();
+// ==================== QUOTES LIBRARY ====================
+const PAUSE_QUOTES = [
+  "Between stimulus and response there is a space. In that space is our power to choose our response. — Viktor Frankl",
+  "The present moment is the only moment where life exists. — Thich Nhat Hanh",
+  "You are the sky. Everything else is just the weather. — Pema Chödrön",
+  "Feelings are just visitors. Let them come and go. — Mooji",
+  "The way out is through. — Robert Frost",
+  "What we resist, persists. — Carl Jung",
+  "Peace is this moment without judgment. — Dorothy Hunt",
+  "The only way to make sense out of change is to plunge into it, move with it, and join the dance. — Alan Watts",
+  "Your task is not to seek for love, but merely to seek and find all the barriers within yourself that you have built against it. — Rumi",
+  "The wound is the place where the Light enters you. — Rumi",
+  "Nothing in life is to be feared, it is only to be understood. Now is the time to understand more, so that we may fear less. — Marie Curie",
+  "The curious paradox is that when I accept myself just as I am, then I can change. — Carl Rogers",
+  "When you change the way you look at things, the things you look at change. — Wayne Dyer",
+  "We cannot solve our problems with the same thinking we used when we created them. — Albert Einstein",
+  "The mind is like water. When it's turbulent, it's difficult to see. When it's calm, everything becomes clear. — Prasad Mahes",
+  "Courage doesn't always roar. Sometimes courage is the quiet voice at the end of the day saying, 'I will try again tomorrow.' — Mary Anne Radmacher",
+  "The darkest nights produce the brightest stars. — John Green",
+  "You don't have to control your thoughts. You just have to stop letting them control you. — Dan Millman",
+  "Stillness is where creativity and solutions to problems are found. — Eckhart Tolle",
+  "The seed of suffering in you may be strong, but don't wait until you have no more suffering before allowing yourself to be happy. — Thich Nhat Hanh"
+];
+
+function getRandomQuote() {
+  return PAUSE_QUOTES[Math.floor(Math.random() * PAUSE_QUOTES.length)];
+}
 
 // ==================== CORS CONFIGURATION ====================
 // ALLOW YOUR HOSTINGER FRONTEND
@@ -60,25 +87,25 @@ Example: {"pattern": "Overwhelm occurs when cognitive demands exceed processing 
 // Fallback responses (structured JSON versions of your LOCAL_RESPONSES)
 const FALLBACK_RESPONSES = {
   quick: {
-    whats_happening: "Your nervous system is scanning the horizon—not for danger, but for what matters. This energy rises to meet what's coming, even when the path isn't clear.",
-    why_learned: "Ancestors needed to anticipate storms and predators. Your body remembers this wisdom, applying it to deadlines, conversations, and unknowns.",
-    belief: "What if this anxiety isn't about preventing disaster, but about caring deeply?",
-    pattern: "Energy gathers in your chest and throat—a preparation system activating. Thoughts move like weather patterns, shifting and reforming.",
-    practice: "Place one hand on your sternum. Breathe naturally. Notice the rise and fall for three breaths.",
-    science: "Your amygdala activates ancient pathways designed for protection. Cortisol rises briefly—a temporary visitor, not a permanent resident."
+    whats_happening: "Your nervous system is responding to something meaningful. This is a natural signal, not a problem.",
+    why_learned: "This pattern once helped you stay connected to what matters most in your environment.",
+    one_belief: "Could it be that this response is trying to protect something important to you?",
+    small_boundary: "You might try noticing the feeling without changing it, just for this moment.",
+    notice_avoid: "Notice where you feel it in your body. Avoid labeling it as good or bad.",
+    simple_science: "Emotional systems activate learned patterns when they detect something meaningful."
   },
   keypoints: {
-    pattern: "Anticipatory energy—your system preparing for what might matter.",
-    meaning: "Often signals: 'This is important' or 'I care about this outcome.'",
-    practice: "Name it gently: 'Preparation energy is here.' Return to one complete breath.",
-    awareness: "Notice when future possibilities feel more real than your feet on the ground."
+    pattern: "Emotional activation—your system responding to what matters.",
+    meaning: "Signals that something here holds importance or needs attention.",
+    practice: "Pause and breathe once, allowing the feeling to be present.",
+    awareness: "Notice when you feel pulled to fix or change the feeling immediately."
   },
   detailed: {
-    pattern: "Anxiety is future-oriented energy seeking certainty in an uncertain world. It's your ancient threat detection system applying millennia of survival wisdom to modern complexity.",
-    origin: "For 200,000 years, humans survived by anticipating danger. Your nervous system carries this legacy, now interpreting emails and conversations through ancient survival filters.",
-    meaning: "This feeling might be saying: 'My care is activated' or 'Something here holds meaning worth protecting.'",
-    practice: "When anxiety visits, try the RAIN method: Recognize it's here, Allow it space, Investigate where it lives in your body, Nurture with a hand on your heart.",
-    science: "Involves coordinated activation of amygdala (fear center), hippocampus (memory), and prefrontal cortex (planning). This temporary alignment served survival—now serves your humanity."
+    pattern: "An emotional response activating—your intelligent system meeting the present moment.",
+    origin: "All emotional responses were learned through experience to help navigate relationships and challenges.",
+    meaning: "This feeling might be saying: 'Something here is meaningful' or 'My system is working as designed.'",
+    practice: "Place a hand where you feel the sensation. Breathe into that space three times.",
+    science: "The brain activates learned neural pathways when familiar patterns are detected. This is adaptation, not malfunction."
   }
 };
 
@@ -86,7 +113,7 @@ function validateJsonResponse(jsonObj, length) {
   if (!jsonObj || typeof jsonObj !== 'object') return false;
   
   const requiredKeys = {
-    quick: ['whats_happening', 'why_learned', 'belief', 'pattern', 'practice', 'science'],
+    quick: ['whats_happening', 'why_learned', 'one_belief', 'small_boundary', 'notice_avoid', 'simple_science'],
     keypoints: ['pattern', 'meaning', 'practice', 'awareness'],
     detailed: ['pattern', 'origin', 'meaning', 'practice', 'science']
   };

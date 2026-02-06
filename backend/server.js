@@ -4,7 +4,6 @@ const cors = require('cors');
 const helmet = require('helmet');
 const compression = require('compression');
 const rateLimit = require('express-rate-limit');
-const path = require('path');
 
 // Import models
 const EmotionMatcher = require('./models/EmotionMatcher');
@@ -18,7 +17,10 @@ const PORT = process.env.PORT || 3000;
 const emotionMatcher = new EmotionMatcher();
 const responseGenerator = new ResponseGenerator();
 
-// Security middleware
+// YOUR EXACT FRONTEND DOMAIN - HARDCODED
+const FRONTEND_DOMAIN = 'https://ivory-wombat-811991.hostingersite.com/';
+
+// Middleware - CONFIGURED FOR YOUR FRONTEND
 app.use(helmet({
     contentSecurityPolicy: {
         directives: {
@@ -26,34 +28,31 @@ app.use(helmet({
             styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
             fontSrc: ["'self'", "https://fonts.gstatic.com"],
             imgSrc: ["'self'", "data:", "https:"],
-            scriptSrc: ["'self'", "'unsafe-inline'"]
+            scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+            connectSrc: ["'self'", FRONTEND_DOMAIN]
         }
     }
 }));
 
-// CORS configuration
-const corsOptions = {
-    origin: process.env.ALLOWED_ORIGINS ? 
-        process.env.ALLOWED_ORIGINS.split(',') : 
-        ['http://localhost:8000', 'http://localhost:3000'],
+// CORS - ONLY ALLOW YOUR FRONTEND
+app.use(cors({
+    origin: FRONTEND_DOMAIN,
+    methods: ['GET', 'POST', 'OPTIONS'],
     credentials: true,
-    optionsSuccessStatus: 200
-};
-app.use(cors(corsOptions));
+    allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
+    exposedHeaders: ['Content-Length', 'X-Request-ID']
+}));
 
-// Body parsing
+app.use(compression());
 app.use(express.json({ limit: '10kb' }));
 app.use(express.urlencoded({ extended: true, limit: '10kb' }));
 
-// Compression
-app.use(compression());
-
 // Rate limiting
 const limiter = rateLimit({
-    windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000, // 15 minutes
-    max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 100,
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 100, // Limit each IP to 100 requests per windowMs
     message: {
-        error: "Too many requests from this IP",
+        error: "Too many requests",
         suggestion: "Please wait a moment before trying again",
         closure: "You can continue your day."
     },
@@ -62,9 +61,9 @@ const limiter = rateLimit({
 });
 app.use('/api/', limiter);
 
-// Request logging middleware
+// Request logging
 app.use((req, res, next) => {
-    console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
+    console.log(`${new Date().toISOString()} - ${req.method} ${req.path} - Origin: ${req.headers.origin || 'unknown'}`);
     next();
 });
 
@@ -72,24 +71,35 @@ app.use((req, res, next) => {
 app.get('/api/health', (req, res) => {
     res.json({
         status: 'healthy',
-        service: 'Emotional Intelligence Companion',
+        service: 'Emotional Intelligence Companion API',
         version: '1.0.0',
-        rules: responseGenerator.rules,
-        timestamp: new Date().toISOString()
+        frontend: FRONTEND_DOMAIN,
+        timestamp: new Date().toISOString(),
+        endpoints: {
+            process: 'POST /api/process'
+        },
+        rules: responseGenerator.rules
     });
 });
 
-// Main processing endpoint
+// Main processing endpoint - MATCHES FRONTEND EXPECTATIONS
 app.post('/api/process', (req, res) => {
     try {
         const { text } = req.body;
 
-        // Input validation
+        // Input validation - MATCHES FRONTEND VALIDATION
         if (!text || typeof text !== 'string') {
             return res.status(400).json({
-                error: "Please provide text to process",
-                suggestion: "Share what you're feeling or thinking",
-                closure: "You can continue your day."
+                title: "Understanding Your Experience",
+                sections: [
+                    {
+                        type: "understanding",
+                        title: "Thank You For Sharing",
+                        content: "Please share what you're feeling or thinking"
+                    }
+                ],
+                closure: "You can continue your day.",
+                timestamp: new Date().toISOString()
             });
         }
 
@@ -97,134 +107,162 @@ app.post('/api/process', (req, res) => {
 
         if (trimmedText.length < 3) {
             return res.status(400).json({
-                error: "Please share a bit more about what you're experiencing",
-                suggestion: "Try to describe your feelings or thoughts in a few words",
-                closure: "You can continue your day."
+                title: "Understanding Your Experience",
+                sections: [
+                    {
+                        type: "understanding",
+                        title: "Thank You For Sharing",
+                        content: "Please share a bit more about what you're experiencing"
+                    }
+                ],
+                closure: "You can continue your day.",
+                timestamp: new Date().toISOString()
             });
         }
 
         if (trimmedText.length > 1000) {
             return res.status(400).json({
-                error: "Please share a more focused experience",
-                suggestion: "Try to describe one main feeling or thought at a time",
-                closure: "You can continue your day."
+                title: "Understanding Your Experience",
+                sections: [
+                    {
+                        type: "understanding",
+                        title: "Thank You For Sharing",
+                        content: "Please share a more focused experience"
+                    }
+                ],
+                closure: "You can continue your day.",
+                timestamp: new Date().toISOString()
             });
         }
 
-        // Process emotion
+        // Process emotion - USING SAME LOGIC AS FRONTEND
         const matchResult = emotionMatcher.matchEmotion(trimmedText);
         const emotionData = emotionMatcher.getEmotionData(matchResult.emotion);
 
-        // Generate response
-        const response = responseGenerator.generateResponse(emotionData, matchResult.emotion);
-
-        // Add processing metadata
-        response.processing = {
-            textLength: trimmedText.length,
-            matchedScore: matchResult.score,
-            timestamp: new Date().toISOString()
+        // Generate response - EXACT SAME STRUCTURE AS FRONTEND EXPECTS
+        const response = {
+            title: emotionData.title,
+            sections: [
+                {
+                    type: "understanding",
+                    title: "Understanding This Feeling",
+                    content: emotionData.understanding
+                },
+                {
+                    type: "body",
+                    title: "What Your Experience Might Feel Like",
+                    content: emotionData.body
+                },
+                {
+                    type: "purpose",
+                    title: "Why Humans Experience This",
+                    content: emotionData.purpose
+                },
+                {
+                    type: "shared",
+                    title: "How Others Experience This Too",
+                    content: emotionData.shared
+                }
+            ],
+            closure: emotionData.closure,
+            timestamp: new Date().toISOString(),
+            processing: {
+                textLength: trimmedText.length,
+                matchedEmotion: matchResult.emotion,
+                matchScore: matchResult.score
+            }
         };
 
-        // Send successful response
+        // Log for debugging
+        console.log(`Processed: "${trimmedText.substring(0, 50)}..." -> ${matchResult.emotion} (score: ${matchResult.score}) from ${req.headers.origin || 'unknown origin'}`);
+
         res.json(response);
 
     } catch (error) {
         console.error('Error processing request:', error);
         
-        // Generate error response
-        const errorResponse = responseGenerator.generateErrorResponse();
-        errorResponse.error = "I understand you're sharing something significant";
-        errorResponse.suggestion = "Please try rephrasing your experience";
-        errorResponse.processing = {
-            error: error.message,
+        // Error response that frontend can handle
+        res.status(500).json({
+            title: "Understanding Your Experience",
+            sections: [
+                {
+                    type: "understanding",
+                    title: "Thank You For Sharing",
+                    content: "I understand you're sharing something significant. Please try rephrasing your experience."
+                },
+                {
+                    type: "shared",
+                    title: "You're Not Alone",
+                    content: "Many people have moments that are hard to put into words. That's part of being human."
+                }
+            ],
+            closure: "You can continue your day.",
             timestamp: new Date().toISOString()
-        };
-
-        res.status(500).json(errorResponse);
+        });
     }
 });
 
-// Serve frontend if in production
-if (process.env.NODE_ENV === 'production') {
-    // If frontend is built (e.g., React/Vue build folder)
-    // app.use(express.static(path.join(__dirname, '../frontend/build')));
-    // app.get('*', (req, res) => {
-    //     res.sendFile(path.join(__dirname, '../frontend/build', 'index.html'));
-    // });
-    
-    // For now, just serve a simple message
-    app.get('/', (req, res) => {
-        res.json({
-            message: "Emotional Intelligence Companion API",
-            status: "running",
-            endpoints: {
-                health: "/api/health",
-                process: "/api/process (POST)",
-                documentation: "See README for API documentation"
-            }
-        });
+// Preflight requests
+app.options('*', cors());
+
+// Root endpoint
+app.get('/', (req, res) => {
+    res.json({
+        message: 'Emotional Intelligence Companion API',
+        status: 'running',
+        version: '1.0.0',
+        frontend: FRONTEND_DOMAIN,
+        configuredFor: 'https://ivory-wombat-811991.hostingersite.com/',
+        endpoints: {
+            health: 'GET /api/health',
+            process: 'POST /api/process'
+        },
+        note: 'This API is configured specifically for: https://ivory-wombat-811991.hostingersite.com/'
     });
-} else {
-    // Development mode message
-    app.get('/', (req, res) => {
-        res.json({
-            message: "Emotional Intelligence Companion API (Development Mode)",
-            status: "running",
-            port: PORT,
-            endpoints: {
-                health: "GET /api/health",
-                process: "POST /api/process",
-                requestFormat: {
-                    text: "Your feelings or thoughts (string, 3-1000 chars)"
-                }
-            }
-        });
-    });
-}
+});
 
 // 404 handler
 app.use((req, res) => {
     res.status(404).json({
-        error: "Endpoint not found",
-        suggestion: "Check the API documentation for available endpoints",
-        closure: "You can continue your day."
+        title: "Understanding Your Experience",
+        sections: [
+            {
+                type: "understanding",
+                title: "Endpoint Not Found",
+                content: "The requested endpoint does not exist."
+            }
+        ],
+        closure: "You can continue your day.",
+        timestamp: new Date().toISOString()
     });
 });
 
 // Global error handler
 app.use((err, req, res, next) => {
-    console.error('Global error handler:', err);
+    console.error('Global error:', err);
     
     res.status(500).json({
-        error: "Something went wrong",
-        suggestion: "Please try again later",
+        title: "Understanding Your Experience",
+        sections: [
+            {
+                type: "understanding",
+                title: "Something Went Wrong",
+                content: "Please try again later."
+            }
+        ],
         closure: "You can continue your day.",
         timestamp: new Date().toISOString()
     });
 });
 
 // Start server
-const server = app.listen(PORT, () => {
+app.listen(PORT, () => {
     console.log(`🚀 Emotional Intelligence Companion API running on port ${PORT}`);
-    console.log(`📡 Health check: http://localhost:${PORT}/api/health`);
-    console.log(`⚡ NODE_ENV: ${process.env.NODE_ENV || 'development'}`);
-});
-
-// Graceful shutdown
-process.on('SIGTERM', () => {
-    console.log('SIGTERM signal received: closing HTTP server');
-    server.close(() => {
-        console.log('HTTP server closed');
-        process.exit(0);
-    });
-});
-
-process.on('SIGINT', () => {
-    console.log('SIGINT signal received: closing HTTP server');
-    server.close(() => {
-        console.log('HTTP server closed');
-        process.exit(0);
-    });
+    console.log(`📡 Configured for frontend: ${FRONTEND_DOMAIN}`);
+    console.log(`🔗 Health check: http://localhost:${PORT}/api/health`);
+    console.log(`🔗 Process endpoint: POST http://localhost:${PORT}/api/process`);
+    console.log(`🌐 CORS enabled for: ${FRONTEND_DOMAIN}`);
+    console.log(`🔒 Frontend domain hardcoded: https://ivory-wombat-811991.hostingersite.com/`);
 });
 
 module.exports = app;

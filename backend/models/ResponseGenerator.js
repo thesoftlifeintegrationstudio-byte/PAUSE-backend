@@ -12,7 +12,7 @@ class ResponseGenerator {
     }
 
     generateResponse(emotionData, matchedEmotion) {
-        // Ensure all rules are followed
+        // EXACT STRUCTURE FRONTEND EXPECTS
         return {
             title: emotionData.title,
             sections: [
@@ -38,29 +38,7 @@ class ResponseGenerator {
                 }
             ],
             closure: emotionData.closure,
-            rules: this.rules,
-            matchedEmotion: matchedEmotion
-        };
-    }
-
-    generateErrorResponse() {
-        return {
-            title: "Thank You For Sharing",
-            sections: [
-                {
-                    type: "understanding",
-                    title: "Thank You For Sharing",
-                    content: "What you're experiencing matters. Sometimes words don't capture everything we feel."
-                },
-                {
-                    type: "shared",
-                    title: "You're Not Alone",
-                    content: "Many people have moments that are hard to put into words. That's part of being human."
-                }
-            ],
-            closure: "You can continue your day.",
-            rules: this.rules,
-            matchedEmotion: null
+            timestamp: new Date().toISOString()
         };
     }
 }

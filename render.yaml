@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: emotional-companion-api
+    env: node
+    rootDirectory: src  # ⬅️ Explicitly tell Render
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3000
+      - key: FRONTEND_DOMAIN
+        value: https://ivory-wombat-811991.hostingersite.com/

@@ -17,10 +17,10 @@ const PORT = process.env.PORT || 3000;
 const emotionMatcher = new EmotionMatcher();
 const responseGenerator = new ResponseGenerator();
 
-// YOUR EXACT FRONTEND DOMAIN - HARDCODED
+// YOUR EXACT FRONTEND DOMAIN
 const FRONTEND_DOMAIN = 'https://ivory-wombat-811991.hostingersite.com/';
 
-// Middleware - CONFIGURED FOR YOUR FRONTEND
+// Middleware
 app.use(helmet({
     contentSecurityPolicy: {
         directives: {
@@ -28,7 +28,7 @@ app.use(helmet({
             styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
             fontSrc: ["'self'", "https://fonts.gstatic.com"],
             imgSrc: ["'self'", "data:", "https:"],
-            scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+            scriptSrc: ["'self'", "'unsafe-inline'"],
             connectSrc: ["'self'", FRONTEND_DOMAIN]
         }
     }
@@ -37,10 +37,9 @@ app.use(helmet({
 // CORS - ONLY ALLOW YOUR FRONTEND
 app.use(cors({
     origin: FRONTEND_DOMAIN,
-    methods: ['GET', 'POST', 'OPTIONS'],
+    methods: ['GET', 'POST'],
     credentials: true,
-    allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
-    exposedHeaders: ['Content-Length', 'X-Request-ID']
+    allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
 app.use(compression());
@@ -49,21 +48,19 @@ app.use(express.urlencoded({ extended: true, limit: '10kb' }));
 
 // Rate limiting
 const limiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 100, // Limit each IP to 100 requests per windowMs
+    windowMs: 15 * 60 * 1000,
+    max: 100,
     message: {
         error: "Too many requests",
         suggestion: "Please wait a moment before trying again",
         closure: "You can continue your day."
-    },
-    standardHeaders: true,
-    legacyHeaders: false
+    }
 });
 app.use('/api/', limiter);
 
 // Request logging
 app.use((req, res, next) => {
-    console.log(`${new Date().toISOString()} - ${req.method} ${req.path} - Origin: ${req.headers.origin || 'unknown'}`);
+    console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
     next();
 });
 
@@ -77,27 +74,24 @@ app.get('/api/health', (req, res) => {
         timestamp: new Date().toISOString(),
         endpoints: {
             process: 'POST /api/process'
-        },
-        rules: responseGenerator.rules
+        }
     });
 });
 
-// Main processing endpoint - MATCHES FRONTEND EXPECTATIONS
+// Main processing endpoint
 app.post('/api/process', (req, res) => {
     try {
         const { text } = req.body;
 
-        // Input validation - MATCHES FRONTEND VALIDATION
+        // Input validation
         if (!text || typeof text !== 'string') {
             return res.status(400).json({
                 title: "Understanding Your Experience",
-                sections: [
-                    {
-                        type: "understanding",
-                        title: "Thank You For Sharing",
-                        content: "Please share what you're feeling or thinking"
-                    }
-                ],
+                sections: [{
+                    type: "understanding",
+                    title: "Thank You For Sharing",
+                    content: "Please share what you're feeling or thinking"
+                }],
                 closure: "You can continue your day.",
                 timestamp: new Date().toISOString()
             });
@@ -108,13 +102,11 @@ app.post('/api/process', (req, res) => {
         if (trimmedText.length < 3) {
             return res.status(400).json({
                 title: "Understanding Your Experience",
-                sections: [
-                    {
-                        type: "understanding",
-                        title: "Thank You For Sharing",
-                        content: "Please share a bit more about what you're experiencing"
-                    }
-                ],
+                sections: [{
+                    type: "understanding",
+                    title: "Thank You For Sharing",
+                    content: "Please share a bit more about what you're experiencing"
+                }],
                 closure: "You can continue your day.",
                 timestamp: new Date().toISOString()
             });
@@ -123,23 +115,21 @@ app.post('/api/process', (req, res) => {
         if (trimmedText.length > 1000) {
             return res.status(400).json({
                 title: "Understanding Your Experience",
-                sections: [
-                    {
-                        type: "understanding",
-                        title: "Thank You For Sharing",
-                        content: "Please share a more focused experience"
-                    }
-                ],
+                sections: [{
+                    type: "understanding",
+                    title: "Thank You For Sharing",
+                    content: "Please share a more focused experience"
+                }],
                 closure: "You can continue your day.",
                 timestamp: new Date().toISOString()
             });
         }
 
-        // Process emotion - USING SAME LOGIC AS FRONTEND
+        // Process emotion
         const matchResult = emotionMatcher.matchEmotion(trimmedText);
         const emotionData = emotionMatcher.getEmotionData(matchResult.emotion);
 
-        // Generate response - EXACT SAME STRUCTURE AS FRONTEND EXPECTS
+        // Generate response
         const response = {
             title: emotionData.title,
             sections: [
@@ -165,23 +155,14 @@ app.post('/api/process', (req, res) => {
                 }
             ],
             closure: emotionData.closure,
-            timestamp: new Date().toISOString(),
-            processing: {
-                textLength: trimmedText.length,
-                matchedEmotion: matchResult.emotion,
-                matchScore: matchResult.score
-            }
+            timestamp: new Date().toISOString()
         };
-
-        // Log for debugging
-        console.log(`Processed: "${trimmedText.substring(0, 50)}..." -> ${matchResult.emotion} (score: ${matchResult.score}) from ${req.headers.origin || 'unknown origin'}`);
 
         res.json(response);
 
     } catch (error) {
         console.error('Error processing request:', error);
         
-        // Error response that frontend can handle
         res.status(500).json({
             title: "Understanding Your Experience",
             sections: [
@@ -202,9 +183,6 @@ app.post('/api/process', (req, res) => {
     }
 });
 
-// Preflight requests
-app.options('*', cors());
-
 // Root endpoint
 app.get('/', (req, res) => {
     res.json({
@@ -212,12 +190,10 @@ app.get('/', (req, res) => {
         status: 'running',
         version: '1.0.0',
         frontend: FRONTEND_DOMAIN,
-        configuredFor: 'https://ivory-wombat-811991.hostingersite.com/',
         endpoints: {
             health: 'GET /api/health',
             process: 'POST /api/process'
-        },
-        note: 'This API is configured specifically for: https://ivory-wombat-811991.hostingersite.com/'
+        }
     });
 });
 
@@ -225,31 +201,27 @@ app.get('/', (req, res) => {
 app.use((req, res) => {
     res.status(404).json({
         title: "Understanding Your Experience",
-        sections: [
-            {
-                type: "understanding",
-                title: "Endpoint Not Found",
-                content: "The requested endpoint does not exist."
-            }
-        ],
+        sections: [{
+            type: "understanding",
+            title: "Endpoint Not Found",
+            content: "The requested endpoint does not exist."
+        }],
         closure: "You can continue your day.",
         timestamp: new Date().toISOString()
     });
 });
 
-// Global error handler
+// Error handler
 app.use((err, req, res, next) => {
-    console.error('Global error:', err);
+    console.error('Server error:', err);
     
     res.status(500).json({
         title: "Understanding Your Experience",
-        sections: [
-            {
-                type: "understanding",
-                title: "Something Went Wrong",
-                content: "Please try again later."
-            }
-        ],
+        sections: [{
+            type: "understanding",
+            title: "Something Went Wrong",
+            content: "Please try again later."
+        }],
         closure: "You can continue your day.",
         timestamp: new Date().toISOString()
     });
@@ -262,7 +234,6 @@ app.listen(PORT, () => {
     console.log(`🔗 Health check: http://localhost:${PORT}/api/health`);
     console.log(`🔗 Process endpoint: POST http://localhost:${PORT}/api/process`);
     console.log(`🌐 CORS enabled for: ${FRONTEND_DOMAIN}`);
-    console.log(`🔒 Frontend domain hardcoded: https://ivory-wombat-811991.hostingersite.com/`);
 });
 
 module.exports = app;

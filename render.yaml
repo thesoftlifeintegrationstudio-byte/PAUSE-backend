@@ -2,9 +2,9 @@ services:
   - type: web
     name: emotional-companion-api
     env: node
-    rootDirectory: src  # ⬅️ Explicitly tell Render
-    buildCommand: npm install
-    startCommand: npm start
+    rootDirectory: src
+    buildCommand: cd src && npm install
+    startCommand: cd src && npm start
     envVars:
       - key: NODE_ENV
         value: production
